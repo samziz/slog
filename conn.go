@@ -31,7 +31,7 @@ func (c *Conn) Log(errlv string, errs ...string) {
 	err := strings.Join(errs, "")
 
 	lv, exists := c.Conf["loglevel"]
-	if exists {
+	if !exists {
 		lv = "warning"
 	}
 
@@ -50,7 +50,7 @@ func (c *Conn) Log(errlv string, errs ...string) {
 func (c *Conn) Dial() error {
 	auth, err := c.GetAuthMethods()
 	if err != nil {
-		return err
+		return AuthError{Body: err.Error()}
 	}
 
 	cc := ssh.ClientConfig{
@@ -62,7 +62,7 @@ func (c *Conn) Dial() error {
 
 	cl, err := ssh.Dial("tcp", c.Host + ":" + c.Port, &cc)
 	if err != nil {
-		return err
+		return AuthError{Body: err.Error()}
 	}
 	
 	c.Log("verbose", "Connected to host:", c.Host)
@@ -103,7 +103,7 @@ func (c *Conn) ExecAndListen() error {
 	stdout, err := cmd.StdoutPipe()
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		log.Fatal(err)
+		return ConnectionError{Body: err.Error()}
 	}
 
 	c.Log("verbose", "Executing command:", c.Cmd)
@@ -111,7 +111,7 @@ func (c *Conn) ExecAndListen() error {
 	err = cmd.Start()
 	
 	if err != nil {
-		log.Fatal(err)
+		return ConnectionError{Body: err.Error()}
 	}
 
 	go c.streamToRemoteFile(stdout, c.OutPath)
@@ -147,7 +147,8 @@ func (c *Conn) streamToRemoteFile(r io.Reader, dst string) {
 	err = s.Run("mkdir -p " + dir + "&& touch " + dst)
 	
 	if err != nil {
-		log.Fatal(err)
+		cerr := CopyError{Body: err.Error()}
+		log.Fatal(cerr)
 	}
 
 	s.Close()
@@ -165,7 +166,8 @@ func (c *Conn) streamToRemoteFile(r io.Reader, dst string) {
 				out, err := s.CombinedOutput("cat << SSHEOF >> " + dst + "\n" + str + "\nSSHEOF")
 				
 				if err != nil {
-					c.Log("verbose", err.Error(), string(out))
+					cerr := CopyError{Body: err.Error()}
+					c.Log("verbose", cerr.Error(), string(out))
 				}
 			}
 			
