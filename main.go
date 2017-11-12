@@ -1,12 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"io/ioutil"
 	"log"
 	"os/user"
-	"strings"
 )
 
 func main() {
@@ -40,16 +40,15 @@ func getConfig() (map[string]string, error) {
 		return nil, err
 	}
 
-	var df map[string]string
 	home := u.HomeDir
+	var df map[string]string
 	data, err := ioutil.ReadFile(home + "/.slog")
-	if err == nil {
-		df, err = parseFileToMap(data)
 
-		if err != nil {
-			return nil, err
-		}
+	if err != nil {
+		log.Fatal(err)
 	}
+
+	json.Unmarshal(data, &df)
 
 	// Load flags, using .slog file settings as defaults
 	host := flag.String("host", df["host"], "host address")
@@ -57,11 +56,12 @@ func getConfig() (map[string]string, error) {
 	user := flag.String("user", df["user"], "user for remote")
 	outpath := flag.String("outpath", df["outpath"], "absolute path for stdout")
 	errpath := flag.String("errpath", df["errpath"], "absolute path for stderr")
-	authpem := flag.String("authpem", df["auth:pem"], "absolute path for .pem file")
-	authpass := flag.String("authpass", df["auth:pass"], "ssh password for remote")
+	authpem := flag.String("auth:pem", df["auth:pem"], "absolute path for .pem file")
+	authpass := flag.String("auth:pass", df["auth:pass"], "ssh password for remote")
 	loglevel := flag.String("loglevel", df["loglevel"], "default is warning, else none or verbose")
 	flag.Parse()
 
+	// Get command to run
 	args := flag.Args()
 	if len(args) == 0 {
 		return nil, errors.New("No command passed")
@@ -82,20 +82,4 @@ func getConfig() (map[string]string, error) {
 	}
 
 	return conf, nil
-}
-
-func parseFileToMap(data []byte) (map[string]string, error) {
-	s := string(data)
-	lns := strings.Split(s, "\n")
-
-	opts := map[string]string{}
-
-	for _, ln := range lns {
-		if ln != "" {
-			kv := strings.Split(ln, "=")
-			opts[kv[0]] = kv[1]
-		}
-	}
-
-	return opts, nil
 }
