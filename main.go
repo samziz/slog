@@ -9,6 +9,19 @@ import (
 	"os/user"
 )
 
+type ConfigFile struct {
+	Host string
+	Port string
+	User string
+	Outpath string
+	Errpath string
+	Loglevel string
+	Auth struct {
+		Pass string
+		Pem string
+	}
+}
+
 func main() {
 	conf, err := getConfig()
 	if err != nil {
@@ -40,25 +53,27 @@ func getConfig() (map[string]string, error) {
 		return nil, err
 	}
 
-	home := u.HomeDir
-	var df map[string]string
-	data, err := ioutil.ReadFile(home + "/.slog")
-
+	data, err := ioutil.ReadFile(u.HomeDir + "/.slog")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	json.Unmarshal(data, &df)
+	var conf ConfigFile
+	err = json.Unmarshal(data, &conf)
+	
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Load flags, using .slog file settings as defaults
-	host := flag.String("host", df["host"], "host address")
-	port := flag.String("port", "22", "port for remote (default of 22 should usually work)")
-	user := flag.String("user", df["user"], "user for remote")
-	outpath := flag.String("outpath", df["outpath"], "absolute path for stdout")
-	errpath := flag.String("errpath", df["errpath"], "absolute path for stderr")
-	authpem := flag.String("auth:pem", df["auth:pem"], "absolute path for .pem file")
-	authpass := flag.String("auth:pass", df["auth:pass"], "ssh password for remote")
-	loglevel := flag.String("loglevel", df["loglevel"], "default is warning, else none or verbose")
+	host := flag.String("host", conf.Host, "host address")
+	port := flag.String("port", conf.Port, "port for remote (default of 22 should usually work)")
+	user := flag.String("user", conf.User, "user for remote")
+	outpath := flag.String("outpath", conf.Outpath, "absolute path for stdout")
+	errpath := flag.String("errpath", conf.Errpath, "absolute path for stderr")
+	authpem := flag.String("auth:pem", conf.Auth.Pass, "absolute path for .pem file")
+	authpass := flag.String("auth:pass", conf.Auth.Pem, "ssh password for remote")
+	loglevel := flag.String("loglevel", conf.Loglevel, "default is warning, else none or verbose")
 	flag.Parse()
 
 	// Get command to run
@@ -66,10 +81,8 @@ func getConfig() (map[string]string, error) {
 	if len(args) == 0 {
 		return nil, errors.New("No command passed")
 	}
-	
-	cmd := args[0]
 
-	conf := map[string]string{
+	opts := map[string]string{
 		"host": *host,
     	"port": *port,
 		"user": *user,
@@ -78,8 +91,8 @@ func getConfig() (map[string]string, error) {
 		"auth:pem": *authpem,
 		"auth:pass": *authpass,
 		"loglevel": *loglevel,
-		"cmd": cmd,
+		"cmd": args[0],
 	}
 
-	return conf, nil
+	return opts, nil
 }
